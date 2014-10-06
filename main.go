@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"runtime/pprof"
 
+	"github.com/opentarock/service-api/go/client"
 	nservice "github.com/opentarock/service-api/go/service"
 
 	"github.com/opentarock/service-api/go/proto_notify"
@@ -31,12 +32,26 @@ func main() {
 
 	notifyService := nservice.NewRepService("tcp://*:8001")
 
-	handlers := service.NewNotifyServiceHandlers()
+	presenceClient := client.NewPresenceClientNanomsg()
+	err := presenceClient.Connect("tcp://localhost:9001")
+	if err != nil {
+		log.Fatalf("Failed to connect to presence service: ", err)
+	}
+	defer presenceClient.Close()
+
+	gcmClient := client.NewGcmClientNanomsg()
+	err = gcmClient.Connect("tcp://localhost:11001")
+	if err != nil {
+		log.Fatalf("Failed to connect to gcm service: ", err)
+	}
+	defer gcmClient.Close()
+
+	handlers := service.NewNotifyServiceHandlers(presenceClient, gcmClient)
 	notifyService.AddHeaderHandler(proto_notify.MessageUsersHeaderMessage, handlers.MessageUsersHandler())
 
-	err := notifyService.Start()
+	err = notifyService.Start()
 	if err != nil {
-		log.Fatalf("Error starting lobby service: %s", err)
+		log.Fatalf("Error starting notify service: %s", err)
 	}
 	defer notifyService.Close()
 
